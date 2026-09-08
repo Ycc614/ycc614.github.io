@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>工作台首页</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+    <!--左侧侧边栏 -->
+    <div class="sidebar" id="sidebar">
+        <div class="logo">🛡️ <span>园区后台</span></div>
+
+        <div class="menu-parent" data-href="index.html">
+            🏠 <span>工作台</span>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🏢 <span>园区管理</span>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🚗 <span>行车管理</span>
+        </div>
+        <div class="sub-menu">
+            <div class="menu-child" data-href="#">📍 <span>区域管理</span></div>
+            <div class="menu-child" data-href="monthCard.html">💳 <span>月卡管理</span></div>
+            <div class="menu-child" data-href="#">💰 <span>停车缴费管理</span></div>
+            <div class="menu-child" data-href="#">📋 <span>计费规则管理</span></div>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🏘️ <span>物业管理</span>
+        </div>
+        <div class="sub-menu">
+            <div class="menu-child" data-href="#">⚙️ <span>一体杆管理</span></div>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🛠️ <span>系统管理</span>
+        </div>
+    </div>
+
+    <div class="right-wrap">
+        <div class="header">
+            <button id="foldAllBtn">☰</button>
+            <span>工作台首页</span>
+            <div class="header-right">👤 黑马管理员</div>
+        </div>
+        <div class="content">
+            <!--4项统计卡片区域-->
+            <div class="stat-container">
+                <div class="stat-card">
+                    <div class="icon-box icon-blue">💰</div>
+                    <div class="label">年度累计收费（元）</div>
+                    <div class="num" id="totalFee">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon-box icon-green">🏢</div>
+                    <div class="label">入驻企业总数（个）</div>
+                    <div class="num" id="companyCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon-box icon-orange">🚗</div>
+                    <div class="label">月卡车辆总数（辆）</div>
+                    <div class="num" id="carCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="icon-box icon-purple">🚧</div>
+                    <div class="label">一体杆总数（台）</div>
+                    <div class="num" id="poleCount">0</div>
+                </div>
+            </div>
+
+            <!--快捷入口模块 -->
+            <div class="quick-box">
+                <h4>快捷入口</h4>
+                <button class="quick-btn" id="goMonthCard">月卡管理</button>
+                <button class="quick-btn">添加企业</button>
+                <button class="quick-btn">员工管理</button>
+                <button class="quick-btn">数据报表</button>
+            </div>
+
+            <!--快捷入口模块 -->
+            <div class="quick-box">
+                <h4>快捷入口</h4>
+                <p>功能待开发</p>
+            </div>
+        </div>
+    </div>
+
+<script>
+//全局存储key，全部页面统一
+const STORAGE_KEY = "monthCardData";
+//静态模拟固定数据
+const staticInfo = {
+    totalFee: 56888,
+    companyCount: 18,
+    poleCount: 48
+};
+
+//千分位格式化金额
+function formatMoney(num){
+    return Number(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
+}
+
+//读取本地存储数据
+function getLocalData(){
+    let str = localStorage.getItem(STORAGE_KEY);
+    if(str){
+        return JSON.parse(str);
+    }
+}
+
+//封装渲染函数 renderHomeStat
+function renderHomeStat(){
+    const list = getLocalData();
+    document.getElementById("totalFee").innerText = formatMoney(staticInfo.totalFee);
+    document.getElementById("companyCount").innerText = staticInfo.companyCount;
+    document.getElementById("carCount").innerText = list.length;
+    document.getElementById("poleCount").innerText = staticInfo.poleCount;
+}
+
+// 菜单交互公共JS
+const sidebar = document.getElementById("sidebar");
+const menuParents = document.querySelectorAll(".menu-parent");
+const menuChilds = document.querySelectorAll(".menu-child");
+
+//折叠按钮
+document.getElementById("foldAllBtn").onclick = function(){
+    sidebar.classList.toggle("collapse-all");
+    const btn = document.getElementById("foldAllBtn");
+    if(sidebar.classList.contains("collapse-all")){
+        destroyPopper();
+        document.querySelectorAll(".sub-menu").forEach(s=>s.classList.remove("open"));
+    }
+}
+
+//悬浮浮窗全局变量
+let popperDom = null;
+let popperTimer = null;
+
+//销毁浮窗
+function destroyPopper(){
+    if(popperDom){
+        popperDom.remove();
+        popperDom = null;
+    }
+    if(popperTimer){
+        clearTimeout(popperTimer);
+        popperTimer = null;
+    }
+}
+
+//创建折叠模式悬浮浮窗
+function createSubPopper(parentDom){
+    destroyPopper();
+    const sourceSub = parentDom.nextElementSibling;
+    if(!sourceSub || !sourceSub.classList.contains("sub-menu")) return;
+    const childList = Array.from(sourceSub.querySelectorAll(".menu-child"));
+    popperDom = document.createElement("div");
+    popperDom.className = "submenu-popper";
+    const rect = parentDom.getBoundingClientRect();
+    popperDom.style.top = rect.top + "px";
+    childList.forEach(item=>{
+        const href = item.dataset.href;
+        const text = item.innerText;
+        const div = document.createElement("div");
+        div.className = "popper-item";
+        div.innerText = text;
+        div.dataset.href = href;
+        div.onclick = function(){
+            const url = this.dataset.href;
+            if(url && url !== "#") location.href = url;
+            destroyPopper();
+        }
+        popperDom.appendChild(div);
+    })
+    document.body.appendChild(popperDom);
+    popperDom.style.display = "block";
+    popperDom.onmouseleave = function(){
+        popperTimer = setTimeout(()=>destroyPopper(),150);
+    }
+    popperDom.onmouseenter = function(){
+        if(popperTimer) clearTimeout(popperTimer);
+    }
+}
+
+//父菜单两套交互逻辑（展开模式点击展开子菜单；折叠模式hover出浮窗，点击不撑开侧边栏）
+menuParents.forEach((parent)=>{
+    parent.addEventListener("mouseenter",function(){
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse && hasSub){
+            createSubPopper(this);
+        }
+    })
+    parent.addEventListener("mouseleave",function(){
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse && hasSub){
+            popperTimer = setTimeout(()=>destroyPopper(),150);
+        }
+    })
+    parent.onclick = function(){
+        const href = this.dataset.href;
+        const nextSub = this.nextElementSibling;
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse){
+            if(hasSub){
+                return; //折叠状态带子菜单父菜单，点击无动作，仅hover浮窗
+            }else{
+                if(href && href !== "#") location.href = href;
+            }
+        }else{
+            //展开模式原始逻辑
+            if(nextSub && nextSub.classList.contains("sub-menu")){
+                nextSub.classList.toggle("open");
+            }else{
+                if(href && href !== "#") location.href = href;
+            }
+        }
+    }
+})
+
+//侧边栏内部子菜单点击（展开模式）
+menuChilds.forEach(child=>{
+    child.onclick = function(){
+        const href = this.dataset.href;
+        if(href && href !== "#") location.href = href;
+        if(!sidebar.classList.contains("collapse-all")){
+            child.parentElement.classList.add("open");
+        }else{
+            child.parentElement.classList.remove("open");
+        }
+    }
+})
+
+//菜单高亮
+function setMenuActive(){
+    document.querySelectorAll(".sub-menu").forEach(sub=>{
+        sub.classList.remove("open");
+    })
+    let currentPage = location.pathname.split('/').pop();
+    document.querySelectorAll(".menu-parent,.menu-child").forEach(el=>{
+        el.classList.remove("active");
+    });
+    menuChilds.forEach(child=>{
+        const href = child.dataset.href;
+        if(href === currentPage){
+            child.classList.add("active");
+            if(sidebar && !sidebar.classList.contains("collapse-all")){
+                child.parentElement.classList.add("open");
+            }else{
+                child.parentElement.classList.remove("open");
+            }
+            let parentMenu = child.parentElement.previousElementSibling;
+            if(parentMenu) parentMenu.classList.add("active");
+        }
+    })
+    menuParents.forEach(parent=>{
+        const href = parent.dataset.href;
+        if(href === currentPage){
+            parent.classList.add("active");
+        }
+    })
+    destroyPopper();
+}
+
+//快捷入口跳转
+document.getElementById("goMonthCard").onclick = function(){
+    location.href = "monthCard.html";
+}
+
+window.onload = function(){
+    setMenuActive();
+    renderHomeStat();
+}
+</script>
+</body>
+</html>

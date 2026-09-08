@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>新增/编辑月卡</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="logo">🛡️ <span>园区后台</span></div>
+
+        <div class="menu-parent" data-href="index.html">
+            🏠 <span>工作台</span>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🏢 <span>园区管理</span>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🚗 <span>行车管理</span>
+        </div>
+        <div class="sub-menu">
+            <div class="menu-child" data-href="#">📍 <span>区域管理</span></div>
+            <div class="menu-child" data-href="monthCard.html">💳 <span>月卡管理</span></div>
+            <div class="menu-child" data-href="#">💰 <span>停车缴费管理</span></div>
+            <div class="menu-child" data-href="#">📋 <span>计费规则管理</span></div>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🏘️ <span>物业管理</span>
+        </div>
+        <div class="sub-menu">
+            <div class="menu-child" data-href="#">⚙️ <span>一体杆管理</span></div>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🛠️ <span>系统管理</span>
+        </div>
+    </div>
+
+    <div class="right-wrap">
+        <div class="header">
+            <button id="foldAllBtn">☰</button>
+            <span id="pageTitle">新增月卡</span>
+            <div class="header-right">👤 黑马管理员</div>
+        </div>
+        <div class="content">
+            <button class="btn" id="backListBtn">← 返回列表</button>
+            <div class="error-tip" id="errMsg"></div>
+            <!--车辆信息表单卡片 -->
+            <div class="form-card">
+                <h4>车辆信息</h4>
+                <div class="form-item">
+                    <label>车主姓名：</label>
+                    <input type="text" id="carOwner" placeholder="请输入车主姓名">
+                </div>
+                <div class="form-item">
+                    <label>联系方式：</label>
+                    <input type="text" id="phone" placeholder="请输入手机号">
+                </div>
+                <div class="form-item">
+                    <label>车牌号码：</label>
+                    <input type="text" id="carNo" placeholder="如赣A12345">
+                </div>
+                <div class="form-item">
+                    <label>车辆品牌：</label>
+                    <input type="text" id="carBrand" placeholder="如宝马">
+                </div>
+            </div>
+            <!--缴费信息表单卡片 -->
+            <div class="form-card">
+                <h4>缴费信息</h4>
+                <div class="form-item">
+                    <label>开始日期：</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="form-item">
+                    <label>结束日期：</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="form-item">
+                    <label>缴费金额：</label>
+                    <input type="number" id="fee" placeholder="请输入缴费金额">
+                </div>
+                <div style="margin-top:20px;">
+                    <button class="btn" id="resetFormBtn">重置</button>
+                    <button class="btn btn-blue" id="saveFormBtn">确定保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const STORAGE_KEY = "monthCardData";
+let editId = null;
+
+//URL参数读取函数URLSearchParams
+function getUrlParam(paramName){
+    const urlParams = new URLSearchParams(location.search);
+    return urlParams.get(paramName);
+}
+
+//读取本地
+function getLocalData(){
+    let str = localStorage.getItem(STORAGE_KEY);
+    if(str) return JSON.parse(str);
+}
+function saveToLocal(arr){
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));
+}
+//计算剩余天数、状态
+function calcRemainDay(startDate,endDate){
+    const now = new Date();
+    const end = new Date(endDate);
+    const diff = Math.floor((end-now)/(1000*60*60*24));
+    const status = diff>0 ? "可用":"已过期";
+    return {remainDay:diff,status};
+}
+//表单回填编辑数据
+function fillEditData(id){
+    const arr = getLocalData();
+    const item = arr.find(x=>x.id === Number(id));
+    if(!item) return;
+    document.getElementById("carOwner").value = item.carOwner;
+    document.getElementById("phone").value = item.phone;
+    document.getElementById("carNo").value = item.carNo;
+    document.getElementById("carBrand").value = item.carBrand;
+    document.getElementById("startDate").value = item.startDate;
+    document.getElementById("endDate").value = item.endDate;
+    document.getElementById("fee").value = item.fee;
+}
+//表单校验：必填、手机号正则、国内车牌正则
+function validateForm(){
+    const errBox = document.getElementById("errMsg");
+    errBox.innerText = "";
+    const carOwner = document.getElementById("carOwner").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const carNo = document.getElementById("carNo").value.trim();
+    const carBrand = document.getElementById("carBrand").value.trim();
+    const startDate = document.getElementById("startDate").value;
+    const endDate = document.getElementById("endDate").value;
+    const fee = Number(document.getElementById("fee").value);
+
+    //手机号正则
+    const regPhone = /^1[3-9]\d{9}$/;
+    //国内车牌正则
+    const regCar = /^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领A-Z]{1}[A-Z]{1}[A-Z0-9]{4}[A-Z0-9挂学警港澳]{1}$/;
+
+    if(!carOwner){errBox.innerText="车主姓名不能为空";return false;}
+    if(!phone){errBox.innerText="手机号不能为空";return false;}
+    if(!regPhone.test(phone)){errBox.innerText="手机号格式错误";return false;}
+    if(!carNo){errBox.innerText="车牌号码不能为空";return false;}
+    if(!regCar.test(carNo)){errBox.innerText="国内车牌格式错误";return false;}
+    if(!carBrand){errBox.innerText="车辆品牌不能为空";return false;}
+    if(!startDate){errBox.innerText="开始日期不能为空";return false;}
+    if(!endDate){errBox.innerText="结束日期不能为空";return false;}
+    if(new Date(endDate) < new Date(startDate)){errBox.innerText="结束日期不能早于开始日期";return false;}
+    if(!fee || fee<=0){errBox.innerText="缴费金额必须大于0";return false;}
+    return true;
+}
+
+//重置表单
+document.getElementById("resetFormBtn").onclick = function(){
+    document.getElementById("carOwner").value="";
+    document.getElementById("phone").value="";
+    document.getElementById("carNo").value="";
+    document.getElementById("carBrand").value="";
+    document.getElementById("startDate").value="";
+    document.getElementById("endDate").value="";
+    document.getElementById("fee").value="";
+    document.getElementById("errMsg").innerText="";
+}
+//返回列表
+document.getElementById("backListBtn").onclick = function(){
+    location.href = "monthCard.html";
+}
+//保存表单
+document.getElementById("saveFormBtn").onclick = function(){
+    if(!validateForm()) return;
+    const carOwner = document.getElementById("carOwner").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const carNo = document.getElementById("carNo").value.trim();
+    const carBrand = document.getElementById("carBrand").value.trim();
+    const startDate = document.getElementById("startDate").value;
+    const endDate = document.getElementById("endDate").value;
+    const fee = Number(document.getElementById("fee").value);
+    const calcResult = calcRemainDay(startDate,endDate);
+
+    let arr = getLocalData();
+    if(editId){
+        //编辑模式
+        const idx = arr.findIndex(x=>x.id === Number(editId));
+        arr[idx] = {
+            ...arr[idx],
+            carOwner,phone,carNo,carBrand,startDate,endDate,fee,
+            remainDay:calcResult.remainDay,
+            status:calcResult.status
+        }
+    }else{
+        //新增模式
+        const newId = arr.length>0 ? Math.max(...arr.map(x=>x.id))+1 : 1;
+        arr.push({
+            id:newId,carOwner,phone,carNo,carBrand,startDate,endDate,fee,
+            remainDay:calcResult.remainDay,
+            status:calcResult.status
+        })
+    }
+    saveToLocal(arr);
+    alert("保存成功");
+    location.href = "monthCard.html";
+}
+
+//菜单交互公共JS
+const sidebar = document.getElementById("sidebar");
+const menuParents = document.querySelectorAll(".menu-parent");
+const menuChilds = document.querySelectorAll(".menu-child");
+
+document.getElementById("foldAllBtn").onclick = function(){
+    sidebar.classList.toggle("collapse-all");
+    const btn = document.getElementById("foldAllBtn");
+    if(sidebar.classList.contains("collapse-all")){
+        btn.innerText = "☰";
+        destroyPopper();
+        document.querySelectorAll(".sub-menu").forEach(s=>s.classList.remove("open"));
+    }else{
+        btn.innerText = "☰";
+    }
+}
+
+let popperDom = null;
+let popperTimer = null;
+function destroyPopper(){
+    if(popperDom){popperDom.remove();popperDom=null;}
+    if(popperTimer){clearTimeout(popperTimer);popperTimer=null;}
+}
+function createSubPopper(parentDom){
+    destroyPopper();
+    const sourceSub = parentDom.nextElementSibling;
+    if(!sourceSub || !sourceSub.classList.contains("sub-menu")) return;
+    const childList = Array.from(sourceSub.querySelectorAll(".menu-child"));
+    popperDom = document.createElement("div");
+    popperDom.className = "submenu-popper";
+    const rect = parentDom.getBoundingClientRect();
+    popperDom.style.top = rect.top + "px";
+    childList.forEach(item=>{
+        const href = item.dataset.href;
+        const text = item.innerText;
+        const div = document.createElement("div");
+        div.className = "popper-item";
+        div.innerText = text;
+        div.dataset.href = href;
+        div.onclick = function(){
+            const url = this.dataset.href;
+            if(url && url !== "#") location.href = url;
+            destroyPopper();
+        }
+        popperDom.appendChild(div);
+    })
+    document.body.appendChild(popperDom);
+    popperDom.style.display = "block";
+    popperDom.onmouseleave = function(){popperTimer=setTimeout(()=>destroyPopper(),150);}
+    popperDom.onmouseenter = function(){if(popperTimer) clearTimeout(popperTimer);}
+}
+
+menuParents.forEach((parent)=>{
+    parent.addEventListener("mouseenter",function(){
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse && hasSub) createSubPopper(this);
+    })
+    parent.addEventListener("mouseleave",function(){
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse && hasSub) popperTimer = setTimeout(()=>destroyPopper(),150);
+    })
+    parent.onclick = function(){
+        const href = this.dataset.href;
+        const nextSub = this.nextElementSibling;
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse){
+            if(hasSub){return;}
+            else{if(href && href !== "#") location.href = href;}
+        }else{
+            if(nextSub && nextSub.classList.contains("sub-menu")){
+                nextSub.classList.toggle("open");
+            }else{
+                if(href && href !== "#") location.href = href;
+            }
+        }
+    }
+})
+
+menuChilds.forEach(child=>{
+    child.onclick = function(){
+        const href = this.dataset.href;
+        if(href && href !== "#") location.href = href;
+        child.parentElement.classList.add("open");
+    }
+})
+
+function setMenuActive(){
+    document.querySelectorAll(".sub-menu").forEach(sub=>sub.classList.remove("open"));
+    let currentPage = location.pathname.split('/').pop();
+    document.querySelectorAll(".menu-parent,.menu-child").forEach(el=>el.classList.remove("active"));
+    menuChilds.forEach(child=>{
+        const href = child.dataset.href;
+        if(href === currentPage){
+            child.classList.add("active");
+            if(!sidebar.classList.contains("collapse-all")) child.parentElement.classList.add("open");
+            let parentMenu = child.parentElement.previousElementSibling;
+            if(parentMenu) parentMenu.classList.add("active");
+        }
+    })
+    menuParents.forEach(parent=>{
+        const href = parent.dataset.href;
+        if(href === currentPage) parent.classList.add("active");
+    })
+    destroyPopper();
+}
+
+window.onload = function(){
+    setMenuActive();
+    editId = getUrlParam("id");
+    if(editId){
+        document.getElementById("pageTitle").innerText = "编辑月卡";
+        fillEditData(editId);
+    }else{
+        document.getElementById("pageTitle").innerText = "新增月卡";
+    }
+}
+</script>
+</body>
+</html>

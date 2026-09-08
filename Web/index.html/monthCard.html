@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>月卡管理</title>
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="logo">🛡️ <span>园区后台</span></div>
+
+        <div class="menu-parent" data-href="index.html">
+            🏠 <span>工作台</span>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🏢 <span>园区管理</span>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🚗 <span>行车管理</span>
+        </div>
+        <div class="sub-menu">
+            <div class="menu-child" data-href="#">📍 <span>区域管理</span></div>
+            <div class="menu-child" data-href="monthCard.html">💳 <span>月卡管理</span></div>
+            <div class="menu-child" data-href="#">💰 <span>停车缴费管理</span></div>
+            <div class="menu-child" data-href="#">📋 <span>计费规则管理</span></div>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🏘️ <span>物业管理</span>
+        </div>
+        <div class="sub-menu">
+            <div class="menu-child" data-href="#">⚙️ <span>一体杆管理</span></div>
+        </div>
+
+        <div class="menu-parent" data-have-sub="true">
+            🛠️ <span>系统管理</span>
+        </div>
+    </div>
+
+    <div class="right-wrap">
+        <div class="header">
+            <button id="foldAllBtn">☰</button>
+            <span>月卡管理页面</span>
+            <div class="header-right">👤 黑马管理员</div>
+        </div>
+        <div class="content">
+            <!--筛选区域 -->
+            <div class="search-area">
+                车牌号码：<input type="text" id="searchCarNo" placeholder="请输入内容">
+                车主姓名：<input type="text" id="searchOwner" placeholder="请输入内容">
+                状态：
+                <select id="searchStatus">
+                    <option value="">请选择</option>
+                    <option value="可用">可用</option>
+                    <option value="已过期">已过期</option>
+                </select>
+                <button class="btn btn-blue" id="searchBtn">查询</button>
+                <button class="btn" id="resetBtn">重置</button>
+                <br><br>
+                <button class="btn btn-blue" id="addCardBtn">添加月卡</button>
+                <button class="btn btn-red" id="batchDelBtn">批量删除</button>
+            </div>
+            <!--表格区域 -->
+            <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="checkAll"></th>
+                        <th>序号</th>
+                        <th>车主姓名</th>
+                        <th>联系方式</th>
+                        <th>车牌号码</th>
+                        <th>车辆品牌</th>
+                        <th>剩余有效天数</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+            <!--分页区域 -->
+            <div class="page-box">
+                <button class="btn" id="prevPage">上一页</button>
+                <span>当前页：<span id="curPage">1</span></span>
+                <button class="btn" id="nextPage">下一页</button>
+                <span>每页</span>
+                <select id="pageSizeSelect">
+                    <option value="3">3条/页</option>
+                    <option value="5">5条/页</option>
+                    <option value="10">10条/页</option>
+                </select>
+                <span id="totalCount">共0条</span>
+            </div>
+        </div>
+    </div>
+
+    <!--查看弹窗 全部只读 -->
+    <div class="mask" id="viewMask">
+        <div class="modal">
+            <h3>查看月卡信息</h3>
+            <div class="form-item">车主姓名：<input readonly id="viewOwner"></div>
+            <div class="form-item">联系方式：<input readonly id="viewPhone"></div>
+            <div class="form-item">车牌号码：<input readonly id="viewCarNo"></div>
+            <div class="form-item">车辆品牌：<input readonly id="viewBrand"></div>
+            <div class="form-item">开始日期：<input readonly id="viewStart"></div>
+            <div class="form-item">结束日期：<input readonly id="viewEnd"></div>
+            <div class="form-item">缴费金额：<input readonly id="viewFee"></div>
+            <div class="form-item">剩余天数：<input readonly id="viewRemain"></div>
+            <div class="form-item">状态：<input readonly id="viewStatus"></div>
+            <div class="modal-footer">
+                <button class="btn" id="closeView">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!--续费弹窗：车辆信息只读，仅可修改结束日期、续费金额 -->
+    <div class="mask" id="renewMask">
+        <div class="modal">
+            <h3>月卡续费</h3>
+            <div class="form-item">车主姓名：<input readonly id="renewOwner"></div>
+            <div class="form-item">车牌号码：<input readonly id="renewCarNo"></div>
+            <div class="form-item">新结束日期：<input type="date" id="renewEndDate"></div>
+            <div class="form-item">续费金额：<input type="number" id="renewFee"></div>
+            <div class="modal-footer">
+                <button class="btn" id="closeRenew">取消</button>
+                <button class="btn btn-blue" id="submitRenew">确认续费</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const STORAGE_KEY = "monthCardData";
+let currentPage = 1;
+let pageSize = 3;
+let filterData = [];
+let renewEditId = null;
+
+//读取本地
+function getLocalData(){
+    let str = localStorage.getItem(STORAGE_KEY);
+    if(str) return JSON.parse(str);
+}
+//统一保存函数
+function saveToLocal(arr){
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));
+}
+//计算剩余天数、状态
+function calcRemainDay(startDate,endDate){
+    const now = new Date();
+    const end = new Date(endDate);
+    const diff = Math.floor((end - now)/(1000*60*60*24));
+    const status = diff>0 ? "可用":"已过期";
+    return {remainDay:diff,status};
+}
+
+//封装表格渲染函数 renderTable
+function renderTable(){
+    const allList = getLocalData();
+    const sCarNo = document.getElementById("searchCarNo").value.trim();
+    const sOwner = document.getElementById("searchOwner").value.trim();
+    const sStatus = document.getElementById("searchStatus").value;
+    //条件过滤 filter
+    filterData = allList.filter(item=>{
+        let flag = true;
+        if(sCarNo) flag = flag && item.carNo.includes(sCarNo);
+        if(sOwner) flag = flag && item.carOwner.includes(sOwner);
+        if(sStatus) flag = flag && item.status === sStatus;
+        return flag;
+    })
+    //分页切片 slice
+    const startIndex = (currentPage-1)*pageSize;
+    const pageArr = filterData.slice(startIndex,startIndex+pageSize);
+    const tbody = document.getElementById("tableBody");
+    tbody.innerHTML = "";
+    pageArr.forEach((item,index)=>{
+        const tr = document.createElement("tr");
+        const statusClass = item.status === "可用" ? "status-normal":"status-expire";
+        tr.innerHTML = `
+        <td><input type="checkbox" class="rowCheck" data-id="${item.id}"></td>
+        <td>${startIndex+index+1}</td>
+        <td>${item.carOwner}</td>
+        <td>${item.phone}</td>
+        <td>${item.carNo}</td>
+        <td>${item.carBrand}</td>
+        <td>${item.remainDay}</td>
+        <td class="${statusClass}">${item.status}</td>
+        <td>
+            <button class="btn" onclick="viewCard(${item.id})">查看</button>
+            <button class="btn" onclick="renewCard(${item.id})">续费</button>
+            <button class="btn btn-blue" onclick="editCard(${item.id})">编辑</button>
+            <button class="btn btn-red" onclick="deleteCard(${item.id})">删除</button>
+        </td>`;
+        tbody.appendChild(tr);
+    })
+    document.getElementById("curPage").innerText = currentPage;
+    document.getElementById("totalCount").innerText = `共${filterData.length}条`;
+}
+
+//查看弹窗打开
+function viewCard(id){
+    const list = getLocalData();
+    const one = list.find(x=>x.id===id);
+    document.getElementById("viewOwner").value = one.carOwner;
+    document.getElementById("viewPhone").value = one.phone;
+    document.getElementById("viewCarNo").value = one.carNo;
+    document.getElementById("viewBrand").value = one.carBrand;
+    document.getElementById("viewStart").value = one.startDate;
+    document.getElementById("viewEnd").value = one.endDate;
+    document.getElementById("viewFee").value = one.fee;
+    document.getElementById("viewRemain").value = one.remainDay;
+    document.getElementById("viewStatus").value = one.status;
+    document.getElementById("viewMask").style.display="block";
+}
+document.getElementById("closeView").onclick = ()=>{document.getElementById("viewMask").style.display="none";};
+
+//续费弹窗打开
+function renewCard(id){
+    renewEditId = id;
+    const list = getLocalData();
+    const one = list.find(x=>x.id===id);
+    document.getElementById("renewOwner").value = one.carOwner;
+    document.getElementById("renewCarNo").value = one.carNo;
+    document.getElementById("renewEndDate").value = one.endDate;
+    document.getElementById("renewFee").value = one.fee;
+    document.getElementById("renewMask").style.display="block";
+}
+document.getElementById("closeRenew").onclick = ()=>{document.getElementById("renewMask").style.display="none";};
+//确认续费
+document.getElementById("submitRenew").onclick = function(){
+    const newEnd = document.getElementById("renewEndDate").value;
+    const newFee = Number(document.getElementById("renewFee").value);
+    if(!newEnd || !newFee){alert("请完整填写续费信息");return;}
+    const list = getLocalData();
+    const idx = list.findIndex(x=>x.id === renewEditId);
+    const old = list[idx];
+    const calc = calcRemainDay(old.startDate,newEnd);
+    list[idx].endDate = newEnd;
+    list[idx].fee = newFee;
+    list[idx].remainDay = calc.remainDay;
+    list[idx].status = calc.status;
+    saveToLocal(list);
+    document.getElementById("renewMask").style.display="none";
+    renderTable();
+    alert("续费成功");
+}
+
+//编辑跳转，携带id参数
+function editCard(id){
+    location.href = `addMonthCard.html?id=${id}`;
+}
+//单条删除 confirm二次确认
+function deleteCard(id){
+    if(!confirm("确认删除该条月卡记录？")) return;
+    let arr = getLocalData();
+    arr = arr.filter(item=>item.id!==id);
+    saveToLocal(arr);
+    renderTable();
+}
+
+//全选复选框
+document.getElementById("checkAll").onchange = function(){
+    const rowChecks = document.querySelectorAll(".rowCheck");
+    rowChecks.forEach(cb=>{cb.checked = this.checked;});
+}
+//批量删除
+document.getElementById("batchDelBtn").onclick = function(){
+    const checkIdList = Array.from(document.querySelectorAll(".rowCheck:checked")).map(c=>Number(c.dataset.id));
+    if(checkIdList.length===0){alert("请勾选需要删除的数据");return;}
+    if(!confirm(`确认批量删除选中${checkIdList.length}条记录？`)) return;
+    let arr = getLocalData();
+    arr = arr.filter(item=>!checkIdList.includes(item.id));
+    saveToLocal(arr);
+    renderTable();
+}
+
+//查询
+document.getElementById("searchBtn").onclick = function(){
+    currentPage = 1;
+    renderTable();
+}
+//重置
+document.getElementById("resetBtn").onclick = function(){
+    document.getElementById("searchCarNo").value="";
+    document.getElementById("searchOwner").value="";
+    document.getElementById("searchStatus").value="";
+    currentPage=1;
+    renderTable();
+}
+//新增跳转
+document.getElementById("addCardBtn").onclick = ()=>{location.href="addMonthCard.html";};
+
+//分页切换
+document.getElementById("prevPage").onclick = function(){
+    if(currentPage>1){currentPage--;renderTable();}
+}
+document.getElementById("nextPage").onclick = function(){
+    const maxPage = Math.ceil(filterData.length/pageSize);
+    if(currentPage<maxPage){currentPage++;renderTable();}
+}
+document.getElementById("pageSizeSelect").onchange = function(){
+    pageSize = Number(this.value);
+    currentPage = 1;
+    renderTable();
+}
+
+// 菜单交互公共JS
+const sidebar = document.getElementById("sidebar");
+const menuParents = document.querySelectorAll(".menu-parent");
+const menuChilds = document.querySelectorAll(".menu-child");
+
+document.getElementById("foldAllBtn").onclick = function(){
+    sidebar.classList.toggle("collapse-all");
+    const btn = document.getElementById("foldAllBtn");
+    if(sidebar.classList.contains("collapse-all")){
+        btn.innerText = "☰";
+        destroyPopper();
+        document.querySelectorAll(".sub-menu").forEach(s=>s.classList.remove("open"));
+    }else{
+        btn.innerText = "☰";
+    }
+}
+
+let popperDom = null;
+let popperTimer = null;
+function destroyPopper(){
+    if(popperDom){popperDom.remove();popperDom=null;}
+    if(popperTimer){clearTimeout(popperTimer);popperTimer=null;}
+}
+function createSubPopper(parentDom){
+    destroyPopper();
+    const sourceSub = parentDom.nextElementSibling;
+    if(!sourceSub || !sourceSub.classList.contains("sub-menu")) return;
+    const childList = Array.from(sourceSub.querySelectorAll(".menu-child"));
+    popperDom = document.createElement("div");
+    popperDom.className = "submenu-popper";
+    const rect = parentDom.getBoundingClientRect();
+    popperDom.style.top = rect.top + "px";
+    childList.forEach(item=>{
+        const href = item.dataset.href;
+        const text = item.innerText;
+        const div = document.createElement("div");
+        div.className = "popper-item";
+        div.innerText = text;
+        div.dataset.href = href;
+        div.onclick = function(){
+            const url = this.dataset.href;
+            if(url && url !== "#") location.href = url;
+            destroyPopper();
+        }
+        popperDom.appendChild(div);
+    })
+    document.body.appendChild(popperDom);
+    popperDom.style.display = "block";
+    popperDom.onmouseleave = function(){popperTimer=setTimeout(()=>destroyPopper(),150);}
+    popperDom.onmouseenter = function(){if(popperTimer) clearTimeout(popperTimer);}
+}
+
+menuParents.forEach((parent)=>{
+    parent.addEventListener("mouseenter",function(){
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse && hasSub) createSubPopper(this);
+    })
+    parent.addEventListener("mouseleave",function(){
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse && hasSub) popperTimer = setTimeout(()=>destroyPopper(),150);
+    })
+    parent.onclick = function(){
+        const href = this.dataset.href;
+        const nextSub = this.nextElementSibling;
+        const isSidebarCollapse = sidebar.classList.contains("collapse-all");
+        const hasSub = this.dataset.haveSub === "true";
+        if(isSidebarCollapse){
+            if(hasSub){return;}
+            else{if(href && href !== "#") location.href = href;}
+        }else{
+            if(nextSub && nextSub.classList.contains("sub-menu")){
+                nextSub.classList.toggle("open");
+            }else{
+                if(href && href !== "#") location.href = href;
+            }
+        }
+    }
+})
+
+menuChilds.forEach(child=>{
+    child.onclick = function(){
+        const href = this.dataset.href;
+        if(href && href !== "#") location.href = href;
+        child.parentElement.classList.add("open");
+    }
+})
+
+function setMenuActive(){
+    document.querySelectorAll(".sub-menu").forEach(sub=>sub.classList.remove("open"));
+    let currentPage = location.pathname.split('/').pop();
+    document.querySelectorAll(".menu-parent,.menu-child").forEach(el=>el.classList.remove("active"));
+    menuChilds.forEach(child=>{
+        const href = child.dataset.href;
+        if(href === currentPage){
+            child.classList.add("active");
+            if(!sidebar.classList.contains("collapse-all")) child.parentElement.classList.add("open");
+            let parentMenu = child.parentElement.previousElementSibling;
+            if(parentMenu) parentMenu.classList.add("active");
+        }
+    })
+    menuParents.forEach(parent=>{
+        const href = parent.dataset.href;
+        if(href === currentPage) parent.classList.add("active");
+    })
+    destroyPopper();
+}
+
+window.onload = function(){
+    setMenuActive();
+    renderTable();
+}
+</script>
+</body>
+</html>
