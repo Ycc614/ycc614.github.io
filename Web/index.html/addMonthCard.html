@@ -199,7 +199,7 @@ document.getElementById("saveFormBtn").onclick = function(){
         }
     }else{
         //新增模式
-        const newId = arr.length>0 ? Math.max(...arr.map(x=>x.id))+1 : 1;
+        const newId = (Array.isArray(arr) && arr.length>0) ? Math.max(...arr.map(x=>x.id)) : 1;
         arr.push({
             id:newId,carOwner,phone,carNo,carBrand,startDate,endDate,fee,
             remainDay:calcResult.remainDay,
