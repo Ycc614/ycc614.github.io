@@ -105,6 +105,7 @@ function getUrlParam(paramName){
 function getLocalData(){
     let str = localStorage.getItem(STORAGE_KEY);
     if(str) return JSON.parse(str);
+    return [];
 }
 function saveToLocal(arr){
     localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));
